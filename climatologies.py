@@ -37,9 +37,6 @@ from tempfile import NamedTemporaryFile
 from matplotlib import animation
 
 
-
-
-
 #region Data setup
 
 #import the data
@@ -72,15 +69,15 @@ aa_month = da.groupby('time.month') - ca_month
 ct = at_month.to_dataframe()
 ca = aa_month.to_dataframe()
 
-
 filepath = Path('/Users/rachelalaynahall/Desktop/ct.csv')  
 filepath.parent.mkdir(parents=True, exist_ok=True)  
 ct.to_csv(filepath)
-
  
 filepath2 = Path('/Users/rachelalaynahall/Desktop/ca.csv')  
 filepath2.parent.mkdir(parents=True, exist_ok=True)  
 ca.to_csv(filepath2)
+
+#re-upload files to make df easier to manage
 
 ct = pd.read_csv('/Users/rachelalaynahall/Desktop/Desktop - Joshua’s MacBook Air/NP/.conda/ct.csv')
 ca = pd.read_csv('/Users/rachelalaynahall/Desktop/Desktop - Joshua’s MacBook Air/NP/.conda/ca.csv')
@@ -112,10 +109,36 @@ filepath3 = Path('/Users/rachelalaynahall/Desktop/ct1.csv')
 filepath3.parent.mkdir(parents=True, exist_ok=True)  
 ct.to_csv(filepath3)
 
-
 filepath4 = Path('/Users/rachelalaynahall/Desktop/ca1.csv')  
 filepath4.parent.mkdir(parents=True, exist_ok=True)  
 ca.to_csv(filepath4)
+
+#export to R for data processing
+
+R_CODE!!
+
+```{r}
+ct = read.csv("~/Desktop/Sandia/ct1.csv")
+ca = read.csv("~/Desktop/Sandia/ca1.csv")
+
+split_ct = data.frame(split(ct, ct$location))
+split_ca = data.frame(split(ca, ca$location))
+
+rownames(split_ct)<-unlist(split_ct[,1])
+rownames(split_ca)<-unlist(split_ca[,1])
+
+split_ct = split_ct %>% select(-contains(".location"))
+split_ct = split_ct %>% select(-contains(".time"))
+
+split_ca = split_ca %>% select(-contains(".location"))
+split_ca = split_ca %>% select(-contains(".time"))
+
+colnames(split_ca) <- gsub('.A','',colnames(split_ca))
+colnames(split_ct) <- gsub('.T','',colnames(split_ct))
+
+write.csv(split_ca, "~/Desktop/splitca.csv", row.names = TRUE)
+write.csv(split_ct, "~/Desktop/splitct.csv", row.names = TRUE)
+```
 
 #endregion
 
@@ -551,15 +574,36 @@ ct_orig_backscaled['date'] = pd.date_range(start='1/1/1986', periods = len(princ
 
 ct_orig_backscaled = ct_orig_backscaled.set_index('date')
 ct_orig_backscaled.columns = clm_t.columns
-
  
 filepath5 = Path('/Users/rachelalaynahall/Desktop/ct_bs.csv')  
 filepath5.parent.mkdir(parents=True, exist_ok=True)  
 ct_orig_backscaled.to_csv(filepath5)
 
+#export to R for data processing
+
+R_CODE!!
+
+```{r}
+ct_bs = read.csv("~/Desktop/Sandia/ct_bs.csv")
+
+rownames(ct_bs)<-unlist(ct_bs[,1])
+ct_bs = ct_bs[-c(1)]
+
+ct_bs = ct_bs %>% rownames_to_column('row') %>% pivot_longer(cols = -row)
+
+ct_bs = ct_bs %>% 
+  rename(
+    date = row,
+    location = name,
+    T = value
+    )
+
+write.csv(ct_bs, "~/Desktop/ct_bs.csv", row.names = FALSE)
+
+```
+
 ct_bs = pd.read_csv('/Users/rachelalaynahall/Desktop/Desktop - Joshua’s MacBook Air/NP/.conda/ct_bs.csv')
 
-#ct_bs[['lat', 'lon']] = ct_bs.location.str.split("..", expand = True)
 ct_bs[['lat', 'lon']] = ct_bs["location"].apply(lambda x: pd.Series(str(x).split("..")))
 
 ct_bs['lat'] = ct_bs['lat'].str.replace('X', '')
@@ -586,6 +630,22 @@ filepath7 = Path('/Users/rachelalaynahall/Desktop/compare.csv')
 filepath7.parent.mkdir(parents=True, exist_ok=True)  
 compare.to_csv(filepath7)
 
+#export to R for data processing
+
+R_CODE!!
+
+```{r}
+tf = read.csv("~/Desktop/Sandia/tf.csv")
+compare = read.csv("~/Desktop/Sandia/compare.csv")
+
+difference = tf['time']
+difference['lat'] = tf['lat']
+difference['lon'] = tf['lon']
+difference['diff'] = compare['T'] - tf['T']
+
+ggplot(data=difference %>% mutate(time=as_date(time)) %>% group_by(time) %>% summarize(m=mean(diff^2)),aes(x=time,y=m)) + geom_line()
+
+```
 
 #endregion
 
@@ -594,7 +654,6 @@ compare.to_csv(filepath7)
 
 dtb_month.hvplot(groupby = 'time')
 ct_bs_array.hvplot(groupby = 'time')
-
 
 # First we specify Coordinate Refference System for Map Projection
 # We will use Mercator, which is a cylindrical, conformal projection. 
